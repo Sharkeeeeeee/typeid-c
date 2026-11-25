@@ -1,0 +1,8 @@
+typeid-c
+Copyright 2026 Sharkeeeeeee
+
+This product implements the TypeID specification by Jetify Inc.
+(https://github.com/jetify-com/typeid), licensed under the Apache License 2.0.
+
+The files in tests/spec/ are copied unmodified from the TypeID specification
+repository and are Copyright Jetify Inc., licensed under the Apache License 2.0.

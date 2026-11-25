@@ -1,0 +1,9 @@
+build/
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+/typeid
+/test_typeid
+/bench_typeid

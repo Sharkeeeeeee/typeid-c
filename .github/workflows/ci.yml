@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unix:
+    name: ${{ matrix.os }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        cc: [gcc, clang]
+        exclude:
+          - os: macos-latest
+            cc: gcc
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test (C99, warnings as errors)
+        run: |
+          ${{ matrix.cc }} -std=c99 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Wpedantic -Werror \
+            -o test_typeid tests/test_typeid.c && ./test_typeid
+      - name: Test (C11)
+        run: |
+          ${{ matrix.cc }} -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -o test_typeid tests/test_typeid.c && ./test_typeid
+      - name: Test (C++)
+        run: |
+          ${{ matrix.cc == 'gcc' && 'g++' || 'clang++' }} -x c++ -std=c++11 -O2 -Wall -Wextra -Werror \
+            -o test_typeid_cpp tests/test_typeid.c && ./test_typeid_cpp
+      - name: Sanitizers
+        if: matrix.os == 'ubuntu-latest' && matrix.cc == 'gcc'
+        run: |
+          gcc -std=c99 -D_DEFAULT_SOURCE -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all \
+            -o test_typeid_san tests/test_typeid.c && ./test_typeid_san
+      - name: SQLite extension
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+          make test-sqlite CC=${{ matrix.cc }} CFLAGS="-O2 -Wall -Wextra -Werror"
+      - name: CLI
+        run: |
+          make typeid CC=${{ matrix.cc }}
+          ./typeid new user
+          test "$(./typeid encode prefix 01890a5d-ac96-774b-bcce-b302099a8057)" = prefix_01h455vb4pex5vsknk084sn02q
+
+  windows:
+    name: windows / msvc
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
