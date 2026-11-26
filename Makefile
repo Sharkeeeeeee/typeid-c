@@ -10,7 +10,7 @@ else
   EXT = so
 endif
 
-.PHONY: all test test-c test-sqlite bench vectors clean
+.PHONY: all test test-c test-sqlite bench fuzz vectors clean
 
 all: typeid typeid.$(EXT)
 
@@ -37,9 +37,16 @@ bench_typeid: bench/bench.c typeid.h
 bench: bench_typeid
 	./bench_typeid
 
+# Requires clang with libFuzzer
+fuzz_parse: fuzz/fuzz_parse.c typeid.h
+	clang -g -O1 -fsanitize=fuzzer,address,undefined -o $@ fuzz/fuzz_parse.c
+
+fuzz: fuzz_parse
+	./fuzz_parse -max_total_time=60 -max_len=128 fuzz/corpus
+
 # Regenerate tests/vectors.h after updating tests/spec/*.json
 vectors:
 	$(PYTHON) tools/gen_vectors.py tests/spec tests/vectors.h
 
 clean:
-	rm -f typeid typeid.so typeid.dylib test_typeid bench_typeid
+	rm -f typeid typeid.so typeid.dylib test_typeid bench_typeid fuzz_parse
