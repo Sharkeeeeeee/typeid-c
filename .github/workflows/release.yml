@@ -20,6 +20,7 @@ jobs:
     name: build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - { os: ubuntu-latest, name: linux-x86_64, file: typeid.so }
@@ -28,17 +29,20 @@ jobs:
           - { os: windows-latest, name: windows-x86_64, file: typeid.dll }
     steps:
       - uses: actions/checkout@v5
-      - name: Fetch SQLite headers (Windows)
-        if: runner.os == 'Windows'
+      # Use the official SQLite headers everywhere except Linux, where the
+      # distribution headers are used. (Apple's SDK headers do not support
+      # loadable extensions.)
+      - name: Fetch SQLite headers
+        if: runner.os != 'Linux'
         shell: bash
         run: |
           curl -fsSL -o sqlite.zip https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip
-          unzip -j sqlite.zip '*/sqlite3.h' '*/sqlite3ext.h' -d sqlite
+          unzip -j sqlite.zip '*/sqlite3.h' '*/sqlite3ext.h' -d sqlite-include
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        run: cl /O2 /I sqlite sqlite\typeid_sqlite.c /LD /Fe:typeid.dll
+        run: cl /O2 /I sqlite-include sqlite\typeid_sqlite.c /LD /Fe:typeid.dll
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -46,7 +50,7 @@ jobs:
           make typeid.so CFLAGS="-O2 -Wall -Wextra"
       - name: Build (macOS)
         if: runner.os == 'macOS'
-        run: make typeid.dylib CFLAGS="-O2 -Wall -Wextra"
+        run: make typeid.dylib CFLAGS="-O2 -Wall -Wextra -I sqlite-include"
       - name: Package
         shell: bash
         run: |
