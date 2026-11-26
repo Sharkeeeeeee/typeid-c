@@ -108,7 +108,7 @@ static void test_prefix_rules(void) {
 
 static void test_errors(void) {
     typeid_t t;
-    char small[10];
+    char tiny_buf[10];
     uint8_t u[16];
     CHECK(typeid_parse(&t, "prefix_8zzzzzzzzzzzzzzzzzzzzzzzzz") == TYPEID_ERR_OVERFLOW,
           "overflow error code");
@@ -120,7 +120,7 @@ static void test_errors(void) {
     CHECK(typeid_parse(&t, NULL) == TYPEID_ERR_NULL, "null str");
 
     typeid_parse(&t, "user_01h455vb4pex5vsknk084sn02q");
-    CHECK(typeid_to_string(&t, small, sizeof small, NULL) == TYPEID_ERR_BUFFER, "buffer");
+    CHECK(typeid_to_string(&t, tiny_buf, sizeof tiny_buf, NULL) == TYPEID_ERR_BUFFER, "buffer");
 
     CHECK(typeid_uuid_parse("01890a5dac96774bbcceb302099a8057", 32, u) == TYPEID_OK,
           "uuid without hyphens");

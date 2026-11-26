@@ -18,7 +18,7 @@ jobs:
           - os: macos-latest
             cc: gcc
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Test (C99, warnings as errors)
         run: |
           ${{ matrix.cc }} -std=c99 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Wpedantic -Werror \
@@ -51,7 +51,7 @@ jobs:
     name: windows / msvc
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure
         run: cmake -S . -B build
       - name: Build
