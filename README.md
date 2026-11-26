@@ -8,6 +8,30 @@
 ![C99](https://img.shields.io/badge/C-99-informational)
 ![Header only](https://img.shields.io/badge/header--only-zero%20deps-informational)
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Quick Start](#quick-start)
+  - [Error Handling](#error-handling)
+  - [Configuration](#configuration)
+  - [SQLite Extension](#sqlite-extension)
+  - [Command-Line Tool](#command-line-tool)
+- [API Reference](#api-reference)
+- [Performance](#performance)
+- [Testing](#testing)
+- [Design Notes](#design-notes)
+- [Contributing](#contributing)
+- [Security](#security)
+- [Changelog](#changelog)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+## Overview
+
 ```
 user_01h455vb4pex5vsknk084sn02q
 └──┘ └────────────────────────┘
@@ -16,13 +40,42 @@ type    UUIDv7 in base32
 
 TypeIDs are UUIDv7s with a type prefix, like Stripe IDs. You can't mix up a `user` ID with an `order` ID, they sort by creation time (great for database indexes), and they're 26 characters instead of 36.
 
+## Features
+
 - **One file.** Drop [`typeid.h`](typeid.h) into your project. No dependencies, no build system required.
 - **Portable.** C99 and C++11, tested with GCC, Clang and MSVC on Linux, macOS and Windows. Uses the OS CSPRNG (`getrandom`, `arc4random_buf`, `BCryptGenRandom`).
 - **Spec-compliant.** Passes every official [valid and invalid test vector](https://github.com/jetify-com/typeid/tree/main/spec) of TypeID spec v0.3.0, plus 40k+ additional checks, under ASan and UBSan.
 - **No allocations.** Everything works on caller-provided buffers. Safe to use in embedded and real-time code.
 - **SQLite extension included.** `SELECT typeid_new('user')` and TypeID primary keys in plain SQLite.
 
-## Quick start
+## Requirements
+
+| Component | Requirement |
+| --- | --- |
+| Library (`typeid.h`) | Any C99 or C++11 compiler (GCC, Clang, MSVC) |
+| Platforms | Linux, macOS, Windows, FreeBSD/OpenBSD/NetBSD; other targets via `TYPEID_RANDOM` and `TYPEID_NOW_MS` |
+| SQLite extension | SQLite 3.31.0 or later |
+| Tests | Python 3.8+ (SQLite extension tests only) |
+
+## Installation
+
+Pick whichever fits your project:
+
+- **Single file (recommended):** `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/main/typeid.h`
+- **CMake FetchContent:**
+
+  ```cmake
+  include(FetchContent)
+  FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG main)
+  FetchContent_MakeAvailable(typeid)
+  target_link_libraries(your_app PRIVATE typeid::typeid)
+  ```
+
+- **Git submodule:** `git submodule add https://github.com/Sharkeeeeeee/typeid-c third_party/typeid-c`
+
+## Usage
+
+### Quick Start
 
 ```c
 #define TYPEID_IMPLEMENTATION   /* in exactly one .c file */
@@ -50,49 +103,9 @@ int main(void) {
 cc -O2 main.c -o main && ./main
 ```
 
-### Install
+### Error Handling
 
-Pick whichever fits your project:
-
-- **Copy the file:** `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/main/typeid.h`
-- **CMake FetchContent:**
-
-  ```cmake
-  include(FetchContent)
-  FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG main)
-  FetchContent_MakeAvailable(typeid)
-  target_link_libraries(your_app PRIVATE typeid::typeid)
-  ```
-
-- **Git submodule:** `git submodule add https://github.com/Sharkeeeeeee/typeid-c third_party/typeid-c`
-
-## API
-
-All functions return `TYPEID_OK` (0) on success or a `typeid_err` code. `typeid_strerror()` turns a code into a message.
-
-| Function | What it does |
-| --- | --- |
-| `typeid_new(&id, "user")` | New TypeID with a fresh UUIDv7. Prefix may be `""` or `NULL`. |
-| `typeid_parse(&id, str)` | Parse and validate a string. `typeid_parse_n` takes an explicit length. |
-| `typeid_to_string(&id, buf, size, &len)` | Write the canonical string. `TYPEID_STR_SIZE` (91) always fits. |
-| `typeid_from_uuid(&id, "user", bytes)` | Wrap an existing 16-byte UUID (any version). |
-| `typeid_from_uuid_str(&id, "user", "0189...")` | Same, from a UUID string (hyphens optional). |
-| `typeid_uuid_string(&id, buf)` | UUID as `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`. |
-| `typeid_timestamp_ms(&id)` | Creation time (Unix ms) stored in the UUIDv7. |
-| `typeid_compare(&a, &b)` | Order by prefix, then by UUID (time). |
-| `typeid_prefix_valid(p, len)` | Check a prefix against `^([a-z]([a-z_]{0,61}[a-z])?)?$`. |
-| `typeid_encode_suffix` / `typeid_decode_suffix` | Low-level base32 encode/decode of the 26-char suffix. |
-
-The struct is plain data, so you can copy it, store it, and compare it with `typeid_compare`:
-
-```c
-typedef struct typeid_t {
-    char prefix[64];   /* NUL-terminated, may be empty */
-    uint8_t uuid[16];  /* big-endian UUID bytes */
-} typeid_t;
-```
-
-Error codes tell you exactly what's wrong:
+Every function that can fail returns a `typeid_err`. Use `typeid_strerror()` for a readable message:
 
 ```c
 typeid_parse(&id, "User_01h455vb4pex5vsknk084sn02q");  /* TYPEID_ERR_PREFIX   */
@@ -110,7 +123,7 @@ Define these before including the header in your implementation file:
 | `TYPEID_RANDOM(buf, n)` | Use your own CSPRNG. Must return 0 on success. |
 | `TYPEID_NOW_MS()` | Use your own clock (Unix ms, `uint64_t`). Handy for tests and embedded targets. |
 
-## SQLite extension
+### SQLite Extension
 
 [`sqlite/typeid_sqlite.c`](sqlite/typeid_sqlite.c) is a loadable extension built on the same header.
 
@@ -144,7 +157,7 @@ SELECT id, typeid_uuid(id), datetime(typeid_timestamp(id) / 1000, 'unixepoch') F
 
 Invalid input raises an SQL error. `NULL` in gives `NULL` out.
 
-## Command-line tool
+### Command-Line Tool
 
 ```console
 $ make typeid
@@ -158,6 +171,45 @@ time: 1688096058518
 $ ./typeid encode prefix 01890a5d-ac96-774b-bcce-b302099a8057
 prefix_01h455vb4pex5vsknk084sn02q
 ```
+
+## API Reference
+
+All functions return `TYPEID_OK` (0) on success or a `typeid_err` code. `typeid_strerror()` turns a code into a message.
+
+| Function | What it does |
+| --- | --- |
+| `typeid_new(&id, "user")` | New TypeID with a fresh UUIDv7. Prefix may be `""` or `NULL`. |
+| `typeid_parse(&id, str)` | Parse and validate a string. `typeid_parse_n` takes an explicit length. |
+| `typeid_to_string(&id, buf, size, &len)` | Write the canonical string. `TYPEID_STR_SIZE` (91) always fits. |
+| `typeid_from_uuid(&id, "user", bytes)` | Wrap an existing 16-byte UUID (any version). |
+| `typeid_from_uuid_str(&id, "user", "0189...")` | Same, from a UUID string (hyphens optional). |
+| `typeid_uuid_string(&id, buf)` | UUID as `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`. |
+| `typeid_timestamp_ms(&id)` | Creation time (Unix ms) stored in the UUIDv7. |
+| `typeid_compare(&a, &b)` | Order by prefix, then by UUID (time). |
+| `typeid_prefix_valid(p, len)` | Check a prefix against `^([a-z]([a-z_]{0,61}[a-z])?)?$`. |
+| `typeid_encode_suffix` / `typeid_decode_suffix` | Low-level base32 encode/decode of the 26-char suffix. |
+
+The struct is plain data, so you can copy it, store it, and compare it with `typeid_compare`:
+
+```c
+typedef struct typeid_t {
+    char prefix[64];   /* NUL-terminated, may be empty */
+    uint8_t uuid[16];  /* big-endian UUID bytes */
+} typeid_t;
+```
+
+### Error Codes
+
+| Code | Value | Meaning |
+| --- | --- | --- |
+| `TYPEID_OK` | 0 | Success |
+| `TYPEID_ERR_NULL` | 1 | A required pointer argument was `NULL` |
+| `TYPEID_ERR_PREFIX` | 2 | Prefix is not `[a-z_]`, exceeds 63 chars, or starts/ends with `_` |
+| `TYPEID_ERR_SUFFIX` | 3 | Suffix is not 26 chars of the base32 alphabet |
+| `TYPEID_ERR_OVERFLOW` | 4 | Suffix encodes more than 128 bits (first char > `7`) |
+| `TYPEID_ERR_UUID` | 5 | Malformed UUID string |
+| `TYPEID_ERR_BUFFER` | 6 | Output buffer is too small |
+| `TYPEID_ERR_RANDOM` | 7 | The system random number generator failed |
 
 ## Performance
 
@@ -177,14 +229,29 @@ make test     # C tests + SQLite extension tests
 
 The tests run every case from the official [`valid.json`](tests/spec/valid.json) and [`invalid.json`](tests/spec/invalid.json), round-trip 20,000 random UUIDs, and check that string order always matches byte (time) order. CI runs them on Linux, macOS and Windows with GCC, Clang, MSVC, C++ mode and sanitizers.
 
-## Notes
+## Design Notes
 
 - `typeid_new` is thread-safe. IDs generated in the same millisecond are ordered randomly relative to each other (the spec does not require monotonic ordering within a millisecond).
 - Decoding accepts any UUID version, as the spec recommends, so you can wrap existing UUIDv4 keys. Only `typeid_new` guarantees UUIDv7.
 - If you compile the implementation with strict `-std=c99` and no POSIX feature macros, timestamps fall back to second precision. Add `-D_POSIX_C_SOURCE=200809L` (or use the default `gnu` modes) to get milliseconds.
 
-## Credits and license
+## Contributing
 
-TypeID was designed by [Jetify](https://github.com/jetify-com/typeid). This is an independent implementation of their [specification](https://github.com/jetify-com/typeid/tree/main/spec). The test vectors in `tests/spec/` are copied from the spec repository.
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, coding style and commit message conventions ([Conventional Commits](https://www.conventionalcommits.org/)). This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
 
-Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE).
+## Security
+
+Please do not report security vulnerabilities through public issues. See [SECURITY.md](SECURITY.md) for how to report them privately.
+
+## Changelog
+
+All notable changes are documented in [CHANGELOG.md](CHANGELOG.md). This project follows [Semantic Versioning](https://semver.org/).
+
+## License
+
+Distributed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution.
+
+## Acknowledgments
+
+- TypeID was designed by [Jetify](https://github.com/jetify-com/typeid). This is an independent implementation of their [specification](https://github.com/jetify-com/typeid/tree/main/spec).
+- The test vectors in [`tests/spec/`](tests/spec) are copied unmodified from the specification repository.
