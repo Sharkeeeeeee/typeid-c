@@ -84,6 +84,35 @@ jobs:
           cmake --build consumer/build && ./consumer/build/app
           PKG_CONFIG_PATH="$PWD/stage/share/pkgconfig" cc $(PKG_CONFIG_PATH="$PWD/stage/share/pkgconfig" pkg-config --cflags typeid) consumer/main.c -o app_pc && ./app_pc
 
+  conan:
+    name: conan create
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create and test package
+        run: |
+          pip install conan
+          conan profile detect
+          conan create . --build=missing
+
+  vcpkg:
+    name: vcpkg overlay port
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install port
+        run: |
+          "$VCPKG_INSTALLATION_ROOT/vcpkg" install typeid-c --overlay-ports=ports
+      - name: Build consumer
+        run: |
+          cmake -S test_package -B consumer \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          cmake --build consumer
+          ./consumer/test_package
+
   windows:
     name: windows / msvc
     runs-on: windows-latest
