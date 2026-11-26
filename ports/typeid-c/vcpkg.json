@@ -1,0 +1,17 @@
+{
+  "name": "typeid-c",
+  "version": "0.1.0",
+  "description": "TypeID for C and C++: type-safe, K-sortable, globally unique identifiers (UUIDv7) in a single header",
+  "homepage": "https://github.com/Sharkeeeeeee/typeid-c",
+  "license": "Apache-2.0",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}

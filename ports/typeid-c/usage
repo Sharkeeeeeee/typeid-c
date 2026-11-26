@@ -1,0 +1,7 @@
+typeid-c is header-only and provides CMake targets:
+
+  find_package(typeid CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE typeid::typeid)
+
+In exactly one source file, define TYPEID_IMPLEMENTATION before including
+typeid.h (C) or typeid.hpp (C++17).
