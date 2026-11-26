@@ -1,11 +1,12 @@
 # typeid-c
 
-**[TypeID](https://github.com/jetify-com/typeid) for C and SQLite: type-safe, K-sortable, globally unique IDs in a single header file.**
+**[TypeID](https://github.com/jetify-com/typeid) for C, C++ and SQLite: type-safe, K-sortable, globally unique IDs in a single header file.**
 
 [![CI](https://github.com/Sharkeeeeeee/typeid-c/actions/workflows/ci.yml/badge.svg)](https://github.com/Sharkeeeeeee/typeid-c/actions/workflows/ci.yml)
 [![TypeID spec](https://img.shields.io/badge/TypeID%20spec-v0.3.0-blue)](https://github.com/jetify-com/typeid/tree/main/spec)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
 ![C99](https://img.shields.io/badge/C-99-informational)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-informational)
 ![Header only](https://img.shields.io/badge/header--only-zero%20deps-informational)
 
 ## Table of Contents
@@ -16,6 +17,7 @@
 - [Installation](#installation)
 - [Usage](#usage)
   - [Quick Start](#quick-start)
+  - [C++ Interface](#c-interface)
   - [Strictly Ordered IDs](#strictly-ordered-ids)
   - [Error Handling](#error-handling)
   - [Configuration](#configuration)
@@ -47,6 +49,7 @@ TypeIDs are UUIDv7s with a type prefix, like Stripe IDs. You can't mix up a `use
 - **Portable.** C99 and C++11, tested with GCC, Clang and MSVC on Linux, macOS and Windows. Uses the OS CSPRNG (`getrandom`, `arc4random_buf`, `BCryptGenRandom`).
 - **Spec-compliant.** Passes every official [valid and invalid test vector](https://github.com/jetify-com/typeid/tree/main/spec) of TypeID spec v0.3.0, plus 400k+ additional checks, under ASan and UBSan, and continuously fuzzed with libFuzzer.
 - **No allocations.** Everything works on caller-provided buffers. Safe to use in embedded and real-time code.
+- **Idiomatic C++17 API.** [`typeid.hpp`](typeid.hpp) adds `tid::TypeID`, exceptions or `std::optional`, `std::hash`, and `tid::TypedID<Tag>` so a `UserID` can never be passed where an `OrderID` is expected, checked at compile time.
 - **Strictly sortable.** An optional monotonic generator guarantees ordering even for IDs created in the same millisecond ([RFC 9562](https://www.rfc-editor.org/rfc/rfc9562#section-6.2) method 1).
 - **SQLite extension included.** `SELECT typeid_new('user')` and TypeID primary keys in plain SQLite.
 
@@ -54,35 +57,66 @@ TypeIDs are UUIDv7s with a type prefix, like Stripe IDs. You can't mix up a `use
 
 | Component | Requirement |
 | --- | --- |
-| Library (`typeid.h`) | Any C99 or C++11 compiler (GCC, Clang, MSVC) |
+| C library (`typeid.h`) | Any C99 or C++11 compiler (GCC, Clang, MSVC) |
+| C++ interface (`typeid.hpp`) | C++17 (GCC 8+, Clang 7+, MSVC 2019+) |
 | Platforms | Linux, macOS, Windows, FreeBSD/OpenBSD/NetBSD; other targets via `TYPEID_RANDOM` and `TYPEID_NOW_MS` |
 | SQLite extension | SQLite 3.31.0 or later |
 | Tests | Python 3.8+ (SQLite extension tests only) |
 
 ## Installation
 
-Pick whichever fits your project:
+Pick whichever fits your project. All options provide both `typeid.h` (C) and `typeid.hpp` (C++17).
 
-- **Single file (recommended):** `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/main/typeid.h`
-- **CMake FetchContent:**
+| Method | Command |
+| --- | --- |
+| Single file | `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/main/typeid.h` |
+| Conan 2 | `conan create .` from a clone, then `requires = "typeid-c/0.1.0"` |
+| vcpkg | `vcpkg install typeid-c --overlay-ports=typeid-c/ports` |
+| CMake FetchContent | See below |
+| CMake `find_package` | `cmake --install` then `find_package(typeid)` |
+| pkg-config | `cc $(pkg-config --cflags typeid) main.c` |
+| clib | `clib install Sharkeeeeeee/typeid-c` |
+| Git submodule | `git submodule add https://github.com/Sharkeeeeeee/typeid-c third_party/typeid-c` |
+| SQLite extension | Prebuilt binaries for Linux (x86-64, ARM64), macOS (ARM64) and Windows (x86-64) on [Releases](https://github.com/Sharkeeeeeee/typeid-c/releases) |
 
-  ```cmake
-  include(FetchContent)
-  FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG main)
-  FetchContent_MakeAvailable(typeid)
-  target_link_libraries(your_app PRIVATE typeid::typeid)
-  ```
+All CMake-based methods (Conan, vcpkg, FetchContent, `find_package`) expose the same target:
 
-- **CMake `find_package`** (after `cmake --install`):
+```cmake
+find_package(typeid CONFIG REQUIRED)   # Conan, vcpkg, or after cmake --install
+target_link_libraries(your_app PRIVATE typeid::typeid)
+```
 
-  ```cmake
-  find_package(typeid 0.1 REQUIRED)
-  target_link_libraries(your_app PRIVATE typeid::typeid)
-  ```
+**CMake FetchContent:**
 
-- **pkg-config:** `cc $(pkg-config --cflags typeid) main.c`
-- **Prebuilt SQLite extension:** download `typeid-sqlite-<version>-<platform>.zip` for Linux (x86-64, ARM64), macOS (ARM64) or Windows (x86-64) from [Releases](https://github.com/Sharkeeeeeee/typeid-c/releases).
-- **Git submodule:** `git submodule add https://github.com/Sharkeeeeeee/typeid-c third_party/typeid-c`
+```cmake
+include(FetchContent)
+FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG main)
+FetchContent_MakeAvailable(typeid)
+target_link_libraries(your_app PRIVATE typeid::typeid)
+```
+
+**Conan 2:** the recipe lives in this repository until it is published to ConanCenter.
+
+```sh
+git clone https://github.com/Sharkeeeeeee/typeid-c && conan create typeid-c
+```
+
+```ini
+# conanfile.txt
+[requires]
+typeid-c/0.1.0
+
+[generators]
+CMakeDeps
+CMakeToolchain
+```
+
+**vcpkg:** an overlay port is included until the port is accepted into the vcpkg registry.
+
+```sh
+git clone https://github.com/Sharkeeeeeee/typeid-c
+vcpkg install typeid-c --overlay-ports=typeid-c/ports
+```
 
 ## Usage
 
@@ -113,6 +147,52 @@ int main(void) {
 ```sh
 cc -O2 main.c -o main && ./main
 ```
+
+### C++ Interface
+
+[`typeid.hpp`](typeid.hpp) wraps the C library in a C++17 API. As with C, define `TYPEID_IMPLEMENTATION` in exactly one `.cpp` file.
+
+```cpp
+#define TYPEID_IMPLEMENTATION   // in exactly one .cpp file
+#include "typeid.hpp"
+#include <iostream>
+
+// Compile-time type safety: each entity gets its own ID type.
+struct UserTag  { static constexpr std::string_view prefix = "user"; };
+struct OrderTag { static constexpr std::string_view prefix = "order"; };
+using UserID  = tid::TypedID<UserTag>;
+using OrderID = tid::TypedID<OrderTag>;
+
+void ship(OrderID id);
+
+int main() {
+    UserID user = UserID::generate();
+    std::cout << user << "\n";                  // user_01m8aweya5f29rna5tzgtfpbtx
+    // ship(user);                               // compile error: not an OrderID
+
+    auto id = tid::TypeID::parse("user_01h455vb4pex5vsknk084sn02q");
+    std::cout << id.prefix() << " " << id.uuid() << "\n";
+
+    if (auto maybe = OrderID::try_parse("user_01h455vb4pex5vsknk084sn02q"); !maybe) {
+        std::cout << "not an order ID\n";       // wrong prefix -> std::nullopt
+    }
+
+    tid::Generator gen;                          // thread-safe, monotonic
+    OrderID a = OrderID::generate(gen), b = OrderID::generate(gen);  // a < b
+}
+```
+
+| C++ API | Description |
+| --- | --- |
+| `tid::TypeID::generate(prefix)` | New TypeID with a random UUIDv7 |
+| `tid::TypeID::parse(str[, prefix])` | Parse; throws `tid::Error` (with `code()`) on invalid input |
+| `tid::TypeID::try_parse(str)` | Parse; returns `std::optional<TypeID>`, never throws |
+| `tid::TypeID::from_uuid(prefix, uuid)` / `from_bytes(prefix, bytes)` | Wrap an existing UUID |
+| `.prefix()` `.suffix()` `.to_string()` `.uuid()` `.uuid_bytes()` | Accessors |
+| `.timestamp()` / `.timestamp_ms()` | `std::chrono::system_clock::time_point` / Unix ms |
+| `== != < <= > >=`, `operator<<`, `std::hash` | Comparison, streaming, use as map key |
+| `tid::Generator::next(prefix)` | Thread-safe monotonic generation |
+| `tid::TypedID<Tag>` | Same API with the prefix fixed at compile time |
 
 ### Strictly Ordered IDs
 
@@ -253,7 +333,7 @@ typedef struct typeid_t {
 ## Testing
 
 ```sh
-make test     # C tests + SQLite extension tests
+make test     # C tests + C++ tests + SQLite extension tests
 ```
 
 Run `make fuzz` (requires clang) to fuzz the parser locally.

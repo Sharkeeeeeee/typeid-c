@@ -90,7 +90,7 @@ Messages are written in English.
 | `ci` | CI configuration |
 | `chore` | Maintenance tasks |
 
-Common scopes: `core`, `sqlite`, `cli`, `windows`.
+Common scopes: `core`, `cpp`, `sqlite`, `cli`, `cmake`, `conan`, `vcpkg`, `windows`.
 
 Examples:
 
