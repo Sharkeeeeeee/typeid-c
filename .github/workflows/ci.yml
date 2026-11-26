@@ -31,11 +31,19 @@ jobs:
         run: |
           ${{ matrix.cc == 'gcc' && 'g++' || 'clang++' }} -x c++ -std=c++11 -O2 -Wall -Wextra -Werror \
             -o test_typeid_cpp tests/test_typeid.c && ./test_typeid_cpp
+      - name: Test C++17 interface (typeid.hpp)
+        run: |
+          ${{ matrix.cc == 'gcc' && 'g++' || 'clang++' }} -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -pthread \
+            -o test_typeid_hpp tests/test_typeid.cpp && ./test_typeid_hpp
       - name: Sanitizers
         if: matrix.os == 'ubuntu-latest' && matrix.cc == 'gcc'
         run: |
           gcc -std=c99 -D_DEFAULT_SOURCE -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all \
             -o test_typeid_san tests/test_typeid.c && ./test_typeid_san
+          g++ -std=c++17 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -pthread \
+            -o test_typeid_cpp_san tests/test_typeid.cpp && ./test_typeid_cpp_san
+          g++ -std=c++17 -g -O1 -fsanitize=thread -pthread \
+            -o test_typeid_cpp_tsan tests/test_typeid.cpp && ./test_typeid_cpp_tsan
       - name: SQLite extension
         if: matrix.os == 'ubuntu-latest'
         run: |
