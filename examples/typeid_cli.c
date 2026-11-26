@@ -38,11 +38,22 @@ int main(int argc, char **argv) {
 
     if (argc < 2) return usage();
 
-    if (strcmp(argv[1], "new") == 0) {
+    if (strcmp(argv[1], "new") == 0 && argc <= 4) {
         const char *prefix = argc > 2 ? argv[2] : "";
-        long n = argc > 3 ? strtol(argv[3], NULL, 10) : 1, i;
+        long n = 1, i;
+        typeid_gen_t gen;
+        if (argc > 3) {
+            char *end;
+            n = strtol(argv[3], &end, 10);
+            if (*argv[3] == '\0' || *end != '\0' || n < 1) {
+                fprintf(stderr, "error: count must be a positive integer\n");
+                return 2;
+            }
+        }
+        /* A generator keeps a batch strictly sorted, even within 1 ms. */
+        typeid_gen_init(&gen);
         for (i = 0; i < n; i++) {
-            if ((e = typeid_new(&tid, prefix)) != TYPEID_OK) return fail(e);
+            if ((e = typeid_gen_next(&gen, &tid, prefix)) != TYPEID_OK) return fail(e);
             typeid_to_string(&tid, buf, sizeof buf, NULL);
             puts(buf);
         }
