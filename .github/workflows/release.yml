@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  sqlite-extension:
+    name: build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, name: linux-x86_64, file: typeid.so }
+          - { os: ubuntu-24.04-arm, name: linux-aarch64, file: typeid.so }
+          - { os: macos-latest, name: macos-arm64, file: typeid.dylib }
+          - { os: windows-latest, name: windows-x86_64, file: typeid.dll }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch SQLite headers (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          curl -fsSL -o sqlite.zip https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip
+          unzip -j sqlite.zip '*/sqlite3.h' '*/sqlite3ext.h' -d sqlite
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cl /O2 /I sqlite sqlite\typeid_sqlite.c /LD /Fe:typeid.dll
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+          make typeid.so CFLAGS="-O2 -Wall -Wextra"
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: make typeid.dylib CFLAGS="-O2 -Wall -Wextra"
+      - name: Package
+        shell: bash
+        run: |
+          mkdir dist
+          cp ${{ matrix.file }} LICENSE NOTICE dist/
+          cd dist && 7z a ../typeid-sqlite-${{ github.ref_name }}-${{ matrix.name }}.zip . > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: typeid-sqlite-*.zip
+
+  release:
+    needs: sqlite-extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          cat notes.md
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp typeid.h dist/
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md

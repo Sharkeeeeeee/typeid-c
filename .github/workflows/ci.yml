@@ -47,6 +47,35 @@ jobs:
           ./typeid new user
           test "$(./typeid encode prefix 01890a5d-ac96-774b-bcce-b302099a8057)" = prefix_01h455vb4pex5vsknk084sn02q
 
+  fuzz:
+    name: fuzz (libFuzzer, 60s)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build fuzzer
+        run: clang -g -O1 -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all fuzz/fuzz_parse.c -o fuzz_parse
+      - name: Run fuzzer
+        run: ./fuzz_parse -max_total_time=60 -max_len=128 fuzz/corpus
+
+  cmake-install:
+    name: cmake install + find_package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install
+        run: |
+          cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$PWD/stage"
+          cmake --build build
+          cmake --install build
+      - name: Consume with find_package and pkg-config
+        run: |
+          mkdir consumer
+          printf '#define TYPEID_IMPLEMENTATION\n#include <typeid.h>\nint main(void){typeid_t t;return typeid_new(&t,"app");}\n' > consumer/main.c
+          printf 'cmake_minimum_required(VERSION 3.14)\nproject(c C)\nfind_package(typeid 0.1 REQUIRED)\nadd_executable(app main.c)\ntarget_link_libraries(app PRIVATE typeid::typeid)\n' > consumer/CMakeLists.txt
+          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH="$PWD/stage"
+          cmake --build consumer/build && ./consumer/build/app
+          PKG_CONFIG_PATH="$PWD/stage/share/pkgconfig" cc $(PKG_CONFIG_PATH="$PWD/stage/share/pkgconfig" pkg-config --cflags typeid) consumer/main.c -o app_pc && ./app_pc
+
   windows:
     name: windows / msvc
     runs-on: windows-latest
