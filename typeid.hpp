@@ -30,7 +30,19 @@
 #error "typeid.hpp requires C++17 or later"
 #endif
 
+/* typeid.h is C: keep C-style casts from tripping strict C++ warnings. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#if defined(__clang__)
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
+#endif
+#endif
 #include "typeid.h"
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 #include <array>
 #include <chrono>
