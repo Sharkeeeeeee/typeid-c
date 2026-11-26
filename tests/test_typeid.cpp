@@ -4,6 +4,7 @@
 #include "vectors.h"
 
 #include <algorithm>
+#include <limits>
 #include <iostream>
 #include <set>
 #include <sstream>
@@ -48,6 +49,14 @@ using OrderID = tid::TypedID<OrderTag>;
 static_assert(!std::is_convertible_v<UserID, OrderID>);
 static_assert(!std::is_convertible_v<OrderID, UserID>);
 static_assert(UserID::prefix() == "user");
+static_assert(tid::detail::prefix_valid("my__type"));
+static_assert(!tid::detail::prefix_valid("_user"));
+static_assert(!tid::detail::prefix_valid("User"));
+static_assert(!tid::detail::prefix_valid(std::string_view("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl")));
+
+// Including the implementation must not leak min/max macros from <windows.h>.
+static_assert(std::numeric_limits<int>::max() > 0);
+static int min_max_still_work() { return std::max(1, 2) - std::min(1, 2); }
 
 static void test_vectors() {
     for (const auto &v : VALID) {
@@ -165,6 +174,7 @@ static void test_hash_and_order() {
 }
 
 int main() {
+    CHECK(min_max_still_work() == 1);
     test_vectors();
     test_basic();
     test_errors();

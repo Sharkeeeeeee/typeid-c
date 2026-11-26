@@ -73,6 +73,15 @@ private:
 using UUIDBytes = std::array<std::uint8_t, 16>;
 
 namespace detail {
+/* constexpr version of typeid_prefix_valid, for compile-time checks. */
+constexpr bool prefix_valid(std::string_view p) noexcept {
+    if (p.empty()) return true;
+    if (p.size() > TYPEID_PREFIX_MAX || p.front() == '_' || p.back() == '_') return false;
+    for (char c : p)
+        if (c != '_' && (c < 'a' || c > 'z')) return false;
+    return true;
+}
+
 inline void check(typeid_err err) {
     if (err != TYPEID_OK) throw Error(err);
 }
@@ -240,6 +249,9 @@ template <typename Tag>
 class TypedID {
 public:
     static constexpr std::string_view prefix_v = Tag::prefix;
+    static_assert(detail::prefix_valid(prefix_v),
+                  "TypedID prefix must be at most 63 chars of [a-z_], starting and "
+                  "ending with a letter");
 
     /* The nil ID with this type's prefix. */
     TypedID() : id_(TypeID::from_bytes(prefix_v, UUIDBytes{})) {}
