@@ -8,3 +8,4 @@ build/
 /test_typeid
 /bench_typeid
 /fuzz_parse
+/test_typeid_cpp

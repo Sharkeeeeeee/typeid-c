@@ -1,4 +1,6 @@
 CC ?= cc
+CXX ?= c++
+CXXFLAGS ?= -O2 -Wall -Wextra -Wpedantic
 CFLAGS ?= -O2 -Wall -Wextra -Wpedantic
 PYTHON ?= python3
 
@@ -10,7 +12,7 @@ else
   EXT = so
 endif
 
-.PHONY: all test test-c test-sqlite bench fuzz vectors clean
+.PHONY: all test test-c test-cpp test-sqlite bench fuzz vectors clean
 
 all: typeid typeid.$(EXT)
 
@@ -23,10 +25,16 @@ typeid.$(EXT): sqlite/typeid_sqlite.c typeid.h
 test_typeid: tests/test_typeid.c tests/vectors.h typeid.h
 	$(CC) $(CFLAGS) -o $@ tests/test_typeid.c
 
-test: test-c test-sqlite
+test: test-c test-cpp test-sqlite
 
 test-c: test_typeid
 	./test_typeid
+
+test_typeid_cpp: tests/test_typeid.cpp tests/vectors.h typeid.h typeid.hpp
+	$(CXX) -std=c++17 $(CXXFLAGS) -pthread -o $@ tests/test_typeid.cpp
+
+test-cpp: test_typeid_cpp
+	./test_typeid_cpp
 
 test-sqlite: typeid.$(EXT)
 	$(PYTHON) tests/test_sqlite.py ./typeid.$(EXT) tests/spec
@@ -49,4 +57,4 @@ vectors:
 	$(PYTHON) tools/gen_vectors.py tests/spec tests/vectors.h
 
 clean:
-	rm -f typeid typeid.so typeid.dylib test_typeid bench_typeid fuzz_parse
+	rm -f typeid typeid.so typeid.dylib test_typeid test_typeid_cpp bench_typeid fuzz_parse

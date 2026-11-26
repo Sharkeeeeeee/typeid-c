@@ -34,6 +34,17 @@ if(TYPEID_BUILD_TESTS)
   add_executable(test_typeid tests/test_typeid.c)
   target_link_libraries(test_typeid PRIVATE typeid)
   add_test(NAME test_typeid COMMAND test_typeid)
+
+  include(CheckLanguage)
+  check_language(CXX)
+  if(CMAKE_CXX_COMPILER)
+    enable_language(CXX)
+    find_package(Threads REQUIRED)
+    add_executable(test_typeid_cpp tests/test_typeid.cpp)
+    target_link_libraries(test_typeid_cpp PRIVATE typeid Threads::Threads)
+    target_compile_features(test_typeid_cpp PRIVATE cxx_std_17)
+    add_test(NAME test_typeid_cpp COMMAND test_typeid_cpp)
+  endif()
 endif()
 
 if(TYPEID_BUILD_EXAMPLES)
@@ -43,7 +54,7 @@ if(TYPEID_BUILD_EXAMPLES)
 endif()
 
 if(TYPEID_INSTALL)
-  install(FILES typeid.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  install(FILES typeid.h typeid.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
   install(TARGETS typeid EXPORT typeidTargets)
   install(EXPORT typeidTargets
     NAMESPACE typeid::
