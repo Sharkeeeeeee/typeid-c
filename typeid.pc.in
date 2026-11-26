@@ -1,0 +1,8 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: typeid
+Description: TypeID (type-safe, K-sortable UUIDv7 identifiers) single-header C library
+URL: https://github.com/Sharkeeeeeee/typeid-c
+Version: @PROJECT_VERSION@
+Cflags: -I${includedir}
