@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(typeid
-  VERSION 0.1.2
+  VERSION 0.1.3
   DESCRIPTION "TypeID for C: type-safe, K-sortable, globally unique IDs"
   HOMEPAGE_URL "https://github.com/Sharkeeeeeee/typeid-c"
   LANGUAGES NONE)  # header-only; languages are enabled only for tests/examples

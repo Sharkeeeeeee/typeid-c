@@ -1,6 +1,6 @@
 {
   "name": "typeid-c",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "repo": "Sharkeeeeeee/typeid-c",
   "description": "TypeID for C: type-safe, K-sortable, globally unique identifiers (UUIDv7) in a single header",
   "keywords": ["typeid", "uuid", "uuidv7", "id", "header-only"],

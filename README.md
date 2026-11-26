@@ -69,8 +69,8 @@ Pick whichever fits your project. All options provide both `typeid.h` (C) and `t
 
 | Method | Command |
 | --- | --- |
-| Single file | `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/v0.1.2/typeid.h` (C++ also needs `typeid.hpp`) |
-| Conan 2 | `conan create .` from a clone, then `requires = "typeid-c/0.1.2"` |
+| Single file | `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/v0.1.3/typeid.h` (C++ also needs `typeid.hpp`) |
+| Conan 2 | `conan create .` from a clone, then `requires = "typeid-c/0.1.3"` |
 | vcpkg | `vcpkg install typeid-c --overlay-ports=typeid-c/ports` |
 | CMake FetchContent | See below |
 | CMake `find_package` | `cmake --install` then `find_package(typeid)` |
@@ -90,7 +90,7 @@ target_link_libraries(your_app PRIVATE typeid::typeid)
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG v0.1.2)
+FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG v0.1.3)
 FetchContent_MakeAvailable(typeid)
 target_link_libraries(your_app PRIVATE typeid::typeid)
 target_compile_features(your_app PRIVATE cxx_std_17)   # only if you use typeid.hpp
@@ -105,7 +105,7 @@ git clone https://github.com/Sharkeeeeeee/typeid-c && conan create typeid-c
 ```ini
 # conanfile.txt
 [requires]
-typeid-c/0.1.2
+typeid-c/0.1.3
 
 [generators]
 CMakeDeps

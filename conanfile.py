@@ -6,7 +6,7 @@ import os
 
 class TypeIDCConan(ConanFile):
     name = "typeid-c"
-    version = "0.1.2"
+    version = "0.1.3"
     description = ("TypeID for C and C++: type-safe, K-sortable, globally unique "
                    "identifiers (UUIDv7) in a single header")
     license = "Apache-2.0"
