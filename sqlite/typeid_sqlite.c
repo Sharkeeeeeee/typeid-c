@@ -86,13 +86,11 @@ static void fn_new(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
     char prefix[TYPEID_PREFIX_MAX + 1];
     typeid_t tid;
     typeid_err e;
-    if (argc == 1 && sqlite3_value_type(argv[0]) == SQLITE_NULL) {
-        prefix[0] = '\0';
-    } else if (argc == 1 && !tid_arg_prefix(argv[0], prefix)) {
+    prefix[0] = '\0'; /* no argument or NULL: no prefix */
+    if (argc == 1 && sqlite3_value_type(argv[0]) != SQLITE_NULL &&
+        !tid_arg_prefix(argv[0], prefix)) {
         tid_error(ctx, "typeid_new", TYPEID_ERR_PREFIX);
         return;
-    } else if (argc == 0) {
-        prefix[0] = '\0';
     }
     e = typeid_gen_next((typeid_gen_t *)sqlite3_user_data(ctx), &tid, prefix);
     if (e != TYPEID_OK) {
