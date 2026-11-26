@@ -69,7 +69,7 @@ Pick whichever fits your project. All options provide both `typeid.h` (C) and `t
 
 | Method | Command |
 | --- | --- |
-| Single file | `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/main/typeid.h` |
+| Single file | `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/v0.1.0/typeid.h` (C++ also needs `typeid.hpp`) |
 | Conan 2 | `conan create .` from a clone, then `requires = "typeid-c/0.1.0"` |
 | vcpkg | `vcpkg install typeid-c --overlay-ports=typeid-c/ports` |
 | CMake FetchContent | See below |
@@ -90,9 +90,10 @@ target_link_libraries(your_app PRIVATE typeid::typeid)
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG main)
+FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG v0.1.0)
 FetchContent_MakeAvailable(typeid)
 target_link_libraries(your_app PRIVATE typeid::typeid)
+target_compile_features(your_app PRIVATE cxx_std_17)   # only if you use typeid.hpp
 ```
 
 **Conan 2:** the recipe lives in this repository until it is published to ConanCenter.
@@ -260,6 +261,11 @@ SELECT id, typeid_uuid(id), datetime(typeid_timestamp(id) / 1000, 'unixepoch') F
 
 Invalid input raises an SQL error. `NULL` in gives `NULL` out.
 
+> [!NOTE]
+> The functions exist only on connections that have loaded the extension. If a table uses `typeid_new()` in a `DEFAULT` or `typeid_check()` in a `CHECK` constraint, load the extension on every connection that writes to it, or inserts fail with `no such function`.
+>
+> The prebuilt Linux binaries require glibc 2.25 or later (Ubuntu 18.04+, Debian 10+, RHEL 8+). On Alpine or older systems, build from source with `make typeid.so`.
+
 ### Command-Line Tool
 
 ```console
@@ -344,7 +350,7 @@ The tests run every case from the official [`valid.json`](tests/spec/valid.json)
 
 - `typeid_new` is thread-safe and stateless. IDs it generates in the same millisecond are ordered randomly relative to each other. When you need strict ordering, use a `typeid_gen_t` generator (one per thread, or guard a shared one with a mutex). The SQLite extension keeps one generator per connection.
 - Decoding accepts any UUID version, as the spec recommends, so you can wrap existing UUIDv4 keys. Only `typeid_new` guarantees UUIDv7.
-- If you compile the implementation with strict `-std=c99` and no POSIX feature macros, timestamps fall back to second precision. Add `-D_POSIX_C_SOURCE=200809L` (or use the default `gnu` modes) to get milliseconds.
+- Timestamps have millisecond precision on Linux, macOS, the BSDs and Windows in every language mode, including strict `-std=c99`. On other platforms without POSIX or C11 clocks, define `TYPEID_NOW_MS()`.
 
 ## Contributing
 
