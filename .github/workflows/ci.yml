@@ -80,6 +80,13 @@ jobs:
           cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH="$PWD/stage"
           cmake --build consumer/build && ./consumer/build/app
           PKG_CONFIG_PATH="$PWD/stage/share/pkgconfig" cc $(PKG_CONFIG_PATH="$PWD/stage/share/pkgconfig" pkg-config --cflags typeid) consumer/main.c -o app_pc && ./app_pc
+      - name: Consume from a C++-only project with add_subdirectory
+        run: |
+          mkdir cxx_consumer
+          printf '#define TYPEID_IMPLEMENTATION\n#include <typeid.hpp>\n#include <iostream>\nint main(){std::cout<<tid::TypeID::generate("cxx")<<"\\n";}\n' > cxx_consumer/main.cpp
+          printf 'cmake_minimum_required(VERSION 3.14)\nproject(c CXX)\nadd_subdirectory(.. typeid)\nadd_executable(app main.cpp)\ntarget_link_libraries(app PRIVATE typeid::typeid)\ntarget_compile_features(app PRIVATE cxx_std_17)\n' > cxx_consumer/CMakeLists.txt
+          cmake -S cxx_consumer -B cxx_consumer/build
+          cmake --build cxx_consumer/build && ./cxx_consumer/build/app
 
   conan:
     name: conan create

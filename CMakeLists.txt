@@ -3,13 +3,18 @@ project(typeid
   VERSION 0.1.1
   DESCRIPTION "TypeID for C: type-safe, K-sortable, globally unique IDs"
   HOMEPAGE_URL "https://github.com/Sharkeeeeeee/typeid-c"
-  LANGUAGES C)
+  LANGUAGES NONE)  # header-only; languages are enabled only for tests/examples
 
 set(TYPEID_IS_TOP_LEVEL OFF)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(TYPEID_IS_TOP_LEVEL ON)
 endif()
 
+# No language is enabled for a header-only install, so give GNUInstallDirs a
+# default instead of letting it probe the (unknown) target architecture.
+if(NOT DEFINED CMAKE_INSTALL_LIBDIR)
+  set(CMAKE_INSTALL_LIBDIR lib)
+endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
@@ -24,9 +29,12 @@ add_library(typeid::typeid ALIAS typeid)
 target_include_directories(typeid INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_compile_features(typeid INTERFACE c_std_99)
 if(WIN32)
   target_link_libraries(typeid INTERFACE bcrypt)
+endif()
+
+if(TYPEID_BUILD_TESTS OR TYPEID_BUILD_EXAMPLES)
+  enable_language(C)
 endif()
 
 if(TYPEID_BUILD_TESTS)
@@ -59,20 +67,20 @@ if(TYPEID_INSTALL)
   install(EXPORT typeidTargets
     NAMESPACE typeid::
     FILE typeidTargets.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/typeid)
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/typeid)
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/typeidConfig.cmake.in
     "@PACKAGE_INIT@\ninclude(\"\${CMAKE_CURRENT_LIST_DIR}/typeidTargets.cmake\")\n")
   configure_package_config_file(
     ${CMAKE_CURRENT_BINARY_DIR}/typeidConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/typeidConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/typeid)
+    INSTALL_DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/typeid)
   write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/typeidConfigVersion.cmake
     COMPATIBILITY SameMinorVersion ARCH_INDEPENDENT)
   install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/typeidConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/typeidConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/typeid)
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/typeid)
   configure_file(typeid.pc.in ${CMAKE_CURRENT_BINARY_DIR}/typeid.pc @ONLY)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/typeid.pc
     DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig)
