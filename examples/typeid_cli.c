@@ -25,6 +25,15 @@ static int usage(void) {
     return 2;
 }
 
+/* Report write errors (e.g. a full disk or closed pipe) as a failure. */
+static int finish(void) {
+    if (fflush(stdout) != 0 || ferror(stdout)) {
+        fprintf(stderr, "error: failed to write output\n");
+        return 1;
+    }
+    return 0;
+}
+
 static int fail(typeid_err e) {
     fprintf(stderr, "error: %s\n", typeid_strerror(e));
     return 1;
@@ -55,22 +64,22 @@ int main(int argc, char **argv) {
         for (i = 0; i < n; i++) {
             if ((e = typeid_gen_next(&gen, &tid, prefix)) != TYPEID_OK) return fail(e);
             typeid_to_string(&tid, buf, sizeof buf, NULL);
-            puts(buf);
+            if (puts(buf) == EOF) break;
         }
-        return 0;
+        return finish();
     }
     if (strcmp(argv[1], "decode") == 0 && argc == 3) {
         if ((e = typeid_parse(&tid, argv[2])) != TYPEID_OK) return fail(e);
         typeid_uuid_string(&tid, uuid);
         printf("type: %s\nuuid: %s\ntime: %llu\n", tid.prefix, uuid,
                (unsigned long long)typeid_timestamp_ms(&tid));
-        return 0;
+        return finish();
     }
     if (strcmp(argv[1], "encode") == 0 && argc == 4) {
         if ((e = typeid_from_uuid_str(&tid, argv[2], argv[3])) != TYPEID_OK) return fail(e);
         typeid_to_string(&tid, buf, sizeof buf, NULL);
         puts(buf);
-        return 0;
+        return finish();
     }
     return usage();
 }

@@ -14,6 +14,9 @@ $bin new user abc >/dev/null 2>&1; check bad-count "$?" 2
 $bin new User >/dev/null 2>&1; check bad-prefix "$?" 1
 $bin decode bad >/dev/null 2>&1; check bad-decode "$?" 1
 $bin >/dev/null 2>&1; check usage "$?" 2
+if [ -w /dev/full ]; then
+    $bin new user 10 >/dev/full 2>/dev/null; check write-error "$?" 1
+fi
 
 [ $fail -eq 0 ] && echo "cli: all checks passed"
 exit $fail
