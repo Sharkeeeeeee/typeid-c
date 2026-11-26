@@ -293,9 +293,11 @@ static uint64_t typeid__now_ms(void) {
     defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
     /* Strict ISO C mode (e.g. -std=c99) hides clock_gettime and struct
      * timespec, but the function is always there on these systems. Declare
-     * it with a layout-compatible struct. CLOCK_REALTIME is 0 on all of them. */
+     * it with a struct matching the ABI of the plain `clock_gettime` symbol
+     * ({long, long} everywhere, even when a 32-bit build opts into 64-bit
+     * time_t, which renames the 64-bit variant). CLOCK_REALTIME is 0. */
     struct typeid__timespec {
-        time_t tv_sec;
+        long tv_sec;
         long tv_nsec;
     } ts;
     extern int clock_gettime(int, struct typeid__timespec *);
