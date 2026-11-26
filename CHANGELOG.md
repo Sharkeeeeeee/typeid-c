@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-26
+
+### Fixed
+
+- Windows: the implementation no longer leaks the `min`/`max` macros from
+  `<windows.h>`, which broke `std::min`, `std::max` and
+  `std::numeric_limits<T>::max()` in C++ files that include it.
+- CMake: C++-only projects (`project(app CXX)`) can now use the library via
+  `add_subdirectory` or `FetchContent`; previously configuration failed with
+  "No known features for C compiler".
+- `typeid_to_string` rejects a hand-modified struct whose prefix is invalid or
+  not NUL-terminated instead of producing an invalid string or reading past the
+  array; `typeid_compare` no longer reads past an unterminated prefix.
+- SQLite: `typeid_encode(NULL, uuid)` and `typeid_check(tid, NULL)` now return
+  `NULL`, as documented, instead of treating `NULL` as an empty prefix.
+- SQLite: the extension builds against SQLite headers older than 3.31.
+
+### Changed
+
+- Android uses `arc4random_buf`; musl-based Linux uses `getrandom` when
+  `<sys/random.h>` is available, instead of reading `/dev/urandom`.
+- `tid::TypedID` rejects an invalid tag prefix at compile time.
+- The CMake package config is installed to `share/cmake/typeid` (it is
+  architecture-independent).
+
 ## [0.1.1] - 2026-11-26
 
 ### Fixed
@@ -54,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example command-line tool and micro-benchmark.
 - Test suite covering all official spec vectors; CI on Linux, macOS and Windows.
 
-[Unreleased]: https://github.com/Sharkeeeeeee/typeid-c/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Sharkeeeeeee/typeid-c/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Sharkeeeeeee/typeid-c/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Sharkeeeeeee/typeid-c/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Sharkeeeeeee/typeid-c/releases/tag/v0.1.0

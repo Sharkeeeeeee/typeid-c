@@ -60,7 +60,7 @@ TypeIDs are UUIDv7s with a type prefix, like Stripe IDs. You can't mix up a `use
 | C library (`typeid.h`) | Any C99 or C++11 compiler (GCC, Clang, MSVC) |
 | C++ interface (`typeid.hpp`) | C++17 (GCC 8+, Clang 7+, MSVC 2019+) |
 | Platforms | Linux, macOS, Windows, FreeBSD/OpenBSD/NetBSD; other targets via `TYPEID_RANDOM` and `TYPEID_NOW_MS` |
-| SQLite extension | SQLite 3.31.0 or later |
+| SQLite extension | SQLite 3.8.3 or later |
 | Tests | Python 3.8+ (SQLite extension tests only) |
 
 ## Installation
@@ -69,8 +69,8 @@ Pick whichever fits your project. All options provide both `typeid.h` (C) and `t
 
 | Method | Command |
 | --- | --- |
-| Single file | `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/v0.1.1/typeid.h` (C++ also needs `typeid.hpp`) |
-| Conan 2 | `conan create .` from a clone, then `requires = "typeid-c/0.1.1"` |
+| Single file | `curl -O https://raw.githubusercontent.com/Sharkeeeeeee/typeid-c/v0.1.2/typeid.h` (C++ also needs `typeid.hpp`) |
+| Conan 2 | `conan create .` from a clone, then `requires = "typeid-c/0.1.2"` |
 | vcpkg | `vcpkg install typeid-c --overlay-ports=typeid-c/ports` |
 | CMake FetchContent | See below |
 | CMake `find_package` | `cmake --install` then `find_package(typeid)` |
@@ -90,7 +90,7 @@ target_link_libraries(your_app PRIVATE typeid::typeid)
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG v0.1.1)
+FetchContent_Declare(typeid GIT_REPOSITORY https://github.com/Sharkeeeeeee/typeid-c GIT_TAG v0.1.2)
 FetchContent_MakeAvailable(typeid)
 target_link_libraries(your_app PRIVATE typeid::typeid)
 target_compile_features(your_app PRIVATE cxx_std_17)   # only if you use typeid.hpp
@@ -105,7 +105,7 @@ git clone https://github.com/Sharkeeeeeee/typeid-c && conan create typeid-c
 ```ini
 # conanfile.txt
 [requires]
-typeid-c/0.1.1
+typeid-c/0.1.2
 
 [generators]
 CMakeDeps
@@ -259,7 +259,7 @@ SELECT id, typeid_uuid(id), datetime(typeid_timestamp(id) / 1000, 'unixepoch') F
 | `typeid_valid(tid)` | 1 if valid, else 0 |
 | `typeid_check(tid, prefix)` | 1 if valid and has that prefix, else 0 (great in `CHECK` constraints) |
 
-Invalid input raises an SQL error. `NULL` in gives `NULL` out.
+Invalid input raises an SQL error. A `NULL` argument gives `NULL`, except `typeid_new(NULL)`, which means no prefix.
 
 > [!NOTE]
 > The functions exist only on connections that have loaded the extension. If a table uses `typeid_new()` in a `DEFAULT` or `typeid_check()` in a `CHECK` constraint, load the extension on every connection that writes to it, or inserts fail with `no such function`.
