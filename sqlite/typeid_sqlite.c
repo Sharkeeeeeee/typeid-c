@@ -9,7 +9,8 @@
  * Load:
  *   sqlite> .load ./typeid
  *
- * Functions (NULL in, NULL out):
+ * Functions (a NULL argument gives NULL, except typeid_new(NULL), which
+ * means no prefix):
  *   typeid_new([prefix])         new TypeID with a fresh UUIDv7; IDs from the
  *                                same connection are strictly increasing
  *   typeid_encode(prefix, uuid)  TypeID from a UUID (text or 16-byte blob)
@@ -32,6 +33,11 @@ SQLITE_EXTENSION_INIT1
 
 #include <string.h>
 
+/* SQLITE_INNOCUOUS is new in SQLite 3.31; older headers do not define it. */
+#ifndef SQLITE_INNOCUOUS
+#define SQLITE_INNOCUOUS 0
+#endif
+
 static void tid_error(sqlite3_context *ctx, const char *fn, typeid_err e) {
     char *msg = sqlite3_mprintf("%s: %s", fn, typeid_strerror(e));
     if (msg) {
@@ -44,8 +50,12 @@ static void tid_error(sqlite3_context *ctx, const char *fn, typeid_err e) {
 
 static void tid_result_text(sqlite3_context *ctx, const typeid_t *tid) {
     char buf[TYPEID_STR_SIZE];
-    size_t len;
-    typeid_to_string(tid, buf, sizeof buf, &len);
+    size_t len = 0;
+    typeid_err e = typeid_to_string(tid, buf, sizeof buf, &len);
+    if (e != TYPEID_OK) {
+        tid_error(ctx, "typeid", e);
+        return;
+    }
     sqlite3_result_text(ctx, buf, (int)len, SQLITE_TRANSIENT);
 }
 
@@ -98,7 +108,9 @@ static void fn_encode(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
     typeid_t tid;
     typeid_err e;
     (void)argc;
-    if (sqlite3_value_type(argv[1]) == SQLITE_NULL) return;
+    if (sqlite3_value_type(argv[0]) == SQLITE_NULL ||
+        sqlite3_value_type(argv[1]) == SQLITE_NULL)
+        return;
     if (!tid_arg_prefix(argv[0], prefix)) {
         tid_error(ctx, "typeid_encode", TYPEID_ERR_PREFIX);
         return;
@@ -176,7 +188,9 @@ static void fn_check(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
     typeid_t tid;
     const unsigned char *want;
     (void)argc;
-    if (sqlite3_value_type(argv[0]) == SQLITE_NULL) return;
+    if (sqlite3_value_type(argv[0]) == SQLITE_NULL ||
+        sqlite3_value_type(argv[1]) == SQLITE_NULL)
+        return;
     want = sqlite3_value_text(argv[1]);
     sqlite3_result_int(ctx, tid_arg_parse(argv[0], &tid) == TYPEID_OK && want &&
                                 strcmp(tid.prefix, (const char *)want) == 0);

@@ -68,6 +68,12 @@ check(q("select typeid_check(?, 'post')", tid) == 0, "check other prefix")
 check(q("select typeid_check('garbage', 'user')") == 0, "check garbage")
 check(q("select typeid_uuid(NULL)") is None, "NULL passthrough")
 check(q("select typeid_valid(NULL)") is None, "NULL valid")
+check(q("select typeid_encode(NULL, '01890a5d-ac96-774b-bcce-b302099a8057')") is None, "encode NULL prefix")
+check(q("select typeid_encode('', '01890a5d-ac96-774b-bcce-b302099a8057')") == "01h455vb4pex5vsknk084sn02q", "encode empty prefix")
+check(q("select typeid_check(?, NULL)", tid) is None, "check NULL prefix")
+check(q("select typeid_new(NULL) is not null") == 1, "typeid_new(NULL) means no prefix")
+check(raises("select typeid_new('abc' || char(0) || 'def')"), "embedded NUL in prefix")
+check(q("select typeid_valid(x'7573657200')") == 0, "blob with NUL")
 
 db.execute(
     "create table users ("
