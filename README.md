@@ -301,6 +301,7 @@ All functions return `TYPEID_OK` (0) on success or a `typeid_err` code. `typeid_
 | `typeid_equal(&a, &b)` / `typeid_is_nil(&id)` | Equality / nil-UUID check. |
 | `typeid_gen_init(&gen)` / `typeid_gen_next(&gen, &id, "user")` | Monotonic generator: every ID sorts after the previous one. |
 | `typeid_encode_suffix` / `typeid_decode_suffix` | Low-level base32 encode/decode of the 26-char suffix. |
+| `typeid_uuid_parse(str, len, bytes)` | Low-level UUID string parser (hyphens optional, any case). |
 
 The struct is plain data, so you can copy it, store it, and compare it with `typeid_compare`:
 
