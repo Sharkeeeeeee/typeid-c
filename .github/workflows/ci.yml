@@ -50,10 +50,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libsqlite3-dev
           make test-sqlite CC=${{ matrix.cc }} CFLAGS="-O2 -Wall -Wextra -Werror"
       - name: CLI
-        run: |
-          make typeid CC=${{ matrix.cc }}
-          ./typeid new user
-          test "$(./typeid encode prefix 01890a5d-ac96-774b-bcce-b302099a8057)" = prefix_01h455vb4pex5vsknk084sn02q
+        run: make test-cli CC=${{ matrix.cc }}
 
   fuzz:
     name: fuzz (libFuzzer, 60s)

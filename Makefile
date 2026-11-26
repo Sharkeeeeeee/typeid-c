@@ -12,7 +12,7 @@ else
   EXT = so
 endif
 
-.PHONY: all test test-c test-cpp test-sqlite bench fuzz vectors clean
+.PHONY: all test test-c test-cpp test-cli test-sqlite bench fuzz vectors clean
 
 all: typeid typeid.$(EXT)
 
@@ -25,7 +25,7 @@ typeid.$(EXT): sqlite/typeid_sqlite.c typeid.h
 test_typeid: tests/test_typeid.c tests/vectors.h typeid.h
 	$(CC) $(CFLAGS) -o $@ tests/test_typeid.c
 
-test: test-c test-cpp test-sqlite
+test: test-c test-cpp test-cli test-sqlite
 
 test-c: test_typeid
 	./test_typeid
@@ -35,6 +35,9 @@ test_typeid_cpp: tests/test_typeid.cpp tests/vectors.h typeid.h typeid.hpp
 
 test-cpp: test_typeid_cpp
 	./test_typeid_cpp
+
+test-cli: typeid
+	sh tests/test_cli.sh ./typeid
 
 test-sqlite: typeid.$(EXT)
 	$(PYTHON) tests/test_sqlite.py ./typeid.$(EXT) tests/spec
