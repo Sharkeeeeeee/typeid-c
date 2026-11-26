@@ -71,7 +71,8 @@ typedef enum typeid_err {
     TYPEID_ERR_OVERFLOW,   /* suffix encodes more than 128 bits */
     TYPEID_ERR_UUID,       /* malformed UUID string */
     TYPEID_ERR_BUFFER,     /* output buffer is too small */
-    TYPEID_ERR_RANDOM      /* the system random number generator failed */
+    TYPEID_ERR_RANDOM,     /* the system random number generator failed */
+    TYPEID_ERR_PREFIX_MISMATCH /* valid TypeID, but not the expected prefix */
 } typeid_err;
 
 /* Generate a new TypeID with a fresh UUIDv7. `prefix` may be "" or NULL. */
@@ -122,6 +123,40 @@ TYPEID_API typeid_err typeid_decode_suffix(const char *suffix, size_t len,
 /* Low-level: parse a UUID string (with or without hyphens) into bytes. */
 TYPEID_API typeid_err typeid_uuid_parse(const char *str, size_t len,
                                         uint8_t out[16]);
+
+/* Write the 26-char base32 suffix (+ NUL) of `tid` into `buf`. */
+TYPEID_API void typeid_suffix(const typeid_t *tid,
+                              char buf[TYPEID_SUFFIX_LEN + 1]);
+
+/* Parse `str` and require its prefix to equal `prefix` ("" or NULL means no
+ * prefix). Returns TYPEID_ERR_PREFIX_MISMATCH if the prefix differs. */
+TYPEID_API typeid_err typeid_parse_expect(typeid_t *out, const char *str,
+                                          const char *prefix);
+
+/* Returns 1 if the UUID is all zeros (the nil UUID), else 0. */
+TYPEID_API int typeid_is_nil(const typeid_t *tid);
+
+/* Returns 1 if both TypeIDs have the same prefix and UUID, else 0. */
+TYPEID_API int typeid_equal(const typeid_t *a, const typeid_t *b);
+
+/* ---- Monotonic generator ------------------------------------------------
+ * typeid_new() produces random UUIDv7s: IDs created in the same millisecond
+ * are not ordered relative to each other. A generator guarantees that every
+ * ID it returns sorts strictly after the previous one, using the 12-bit
+ * rand_a field as a counter (RFC 9562, section 6.2, method 1).
+ *
+ * A generator holds no locks: use one per thread, or protect a shared one
+ * with your own mutex. Zero-initialize it, or call typeid_gen_init(). */
+typedef struct typeid_gen_t {
+    uint64_t last_ms; /* timestamp of the last ID */
+    uint16_t counter; /* 12-bit counter within last_ms */
+} typeid_gen_t;
+
+TYPEID_API void typeid_gen_init(typeid_gen_t *gen);
+
+/* Generate the next monotonic TypeID from `gen`. */
+TYPEID_API typeid_err typeid_gen_next(typeid_gen_t *gen, typeid_t *out,
+                                      const char *prefix);
 
 /* Human-readable description of an error code. */
 TYPEID_API const char *typeid_strerror(typeid_err err);
@@ -502,6 +537,75 @@ TYPEID_API int typeid_compare(const typeid_t *a, const typeid_t *b) {
     return memcmp(a->uuid, b->uuid, 16);
 }
 
+TYPEID_API void typeid_suffix(const typeid_t *tid,
+                              char buf[TYPEID_SUFFIX_LEN + 1]) {
+    typeid__encode(tid->uuid, buf);
+}
+
+TYPEID_API typeid_err typeid_parse_expect(typeid_t *out, const char *str,
+                                          const char *prefix) {
+    typeid_t tmp;
+    typeid_err e;
+    if (!out || !str) return TYPEID_ERR_NULL;
+    e = typeid_parse(&tmp, str);
+    if (e != TYPEID_OK) return e;
+    if (strcmp(tmp.prefix, prefix ? prefix : "") != 0)
+        return TYPEID_ERR_PREFIX_MISMATCH;
+    *out = tmp;
+    return TYPEID_OK;
+}
+
+TYPEID_API int typeid_is_nil(const typeid_t *tid) {
+    int i;
+    for (i = 0; i < 16; i++)
+        if (tid->uuid[i]) return 0;
+    return 1;
+}
+
+TYPEID_API int typeid_equal(const typeid_t *a, const typeid_t *b) {
+    return typeid_compare(a, b) == 0;
+}
+
+TYPEID_API void typeid_gen_init(typeid_gen_t *gen) {
+    gen->last_ms = 0;
+    gen->counter = 0;
+}
+
+TYPEID_API typeid_err typeid_gen_next(typeid_gen_t *gen, typeid_t *out,
+                                      const char *prefix) {
+    uint8_t u[16];
+    uint64_t ms;
+    if (!gen || !out) return TYPEID_ERR_NULL;
+    if (!typeid_prefix_valid(prefix, prefix ? strlen(prefix) : 0))
+        return TYPEID_ERR_PREFIX;
+    if (TYPEID_RANDOM(u + 6, 10) != 0) return TYPEID_ERR_RANDOM;
+    ms = TYPEID_NOW_MS();
+    if (ms > gen->last_ms) {
+        /* New millisecond: seed the counter randomly in its lower half so
+         * there is plenty of room to increment. */
+        gen->last_ms = ms;
+        gen->counter = (uint16_t)(((u[6] << 8) | u[7]) & 0x07FF);
+    } else if (gen->counter < 0x0FFF) {
+        /* Same millisecond, or the clock went backwards: keep last_ms. */
+        gen->counter++;
+    } else {
+        /* Counter exhausted: borrow the next millisecond. */
+        gen->last_ms++;
+        gen->counter = 0;
+    }
+    ms = gen->last_ms;
+    u[0] = (uint8_t)(ms >> 40);
+    u[1] = (uint8_t)(ms >> 32);
+    u[2] = (uint8_t)(ms >> 24);
+    u[3] = (uint8_t)(ms >> 16);
+    u[4] = (uint8_t)(ms >> 8);
+    u[5] = (uint8_t)ms;
+    u[6] = (uint8_t)(0x70 | (gen->counter >> 8)); /* version 7 + counter */
+    u[7] = (uint8_t)gen->counter;
+    u[8] = (uint8_t)((u[8] & 0x3F) | 0x80); /* RFC 9562 variant */
+    return typeid_from_uuid(out, prefix, u);
+}
+
 TYPEID_API const char *typeid_strerror(typeid_err err) {
     switch (err) {
     case TYPEID_OK: return "ok";
@@ -517,6 +621,7 @@ TYPEID_API const char *typeid_strerror(typeid_err err) {
     case TYPEID_ERR_UUID: return "invalid UUID string";
     case TYPEID_ERR_BUFFER: return "output buffer too small";
     case TYPEID_ERR_RANDOM: return "random number generator failed";
+    case TYPEID_ERR_PREFIX_MISMATCH: return "TypeID has a different prefix than expected";
     }
     return "unknown error";
 }

@@ -185,6 +185,68 @@ static void test_roundtrip_random(void) {
     }
 }
 
+static void test_helpers(void) {
+    typeid_t t, u;
+    char suf[TYPEID_SUFFIX_LEN + 1];
+    typeid_parse(&t, "user_01h455vb4pex5vsknk084sn02q");
+    typeid_suffix(&t, suf);
+    CHECK(strcmp(suf, "01h455vb4pex5vsknk084sn02q") == 0, "suffix %s", suf);
+    CHECK(!typeid_is_nil(&t), "not nil");
+    typeid_parse(&u, "00000000000000000000000000");
+    CHECK(typeid_is_nil(&u), "nil");
+    CHECK(!typeid_equal(&t, &u), "equal differs");
+    typeid_parse(&u, "user_01h455vb4pex5vsknk084sn02q");
+    CHECK(typeid_equal(&t, &u), "equal same");
+
+    CHECK(typeid_parse_expect(&u, "user_01h455vb4pex5vsknk084sn02q", "user") == TYPEID_OK,
+          "expect ok");
+    CHECK(typeid_parse_expect(&u, "post_01h455vb4pex5vsknk084sn02q", "user") ==
+              TYPEID_ERR_PREFIX_MISMATCH, "expect mismatch");
+    CHECK(typeid_parse_expect(&u, "01h455vb4pex5vsknk084sn02q", NULL) == TYPEID_OK,
+          "expect no prefix");
+    CHECK(typeid_parse_expect(&u, "01h455vb4pex5vsknk084sn02q", "user") ==
+              TYPEID_ERR_PREFIX_MISMATCH, "expect missing prefix");
+    CHECK(typeid_parse_expect(&u, "user_8zzzzzzzzzzzzzzzzzzzzzzzzz", "user") ==
+              TYPEID_ERR_OVERFLOW, "expect passes parse errors through");
+}
+
+static void test_generator(void) {
+    typeid_gen_t gen;
+    typeid_t prev, cur;
+    char ps[TYPEID_STR_SIZE], cs[TYPEID_STR_SIZE];
+    int i;
+
+    typeid_gen_init(&gen);
+    CHECK(typeid_gen_next(&gen, &prev, "order") == TYPEID_OK, "gen first");
+    typeid_to_string(&prev, ps, sizeof ps, NULL);
+    for (i = 0; i < 200000; i++) {
+        CHECK(typeid_gen_next(&gen, &cur, "order") == TYPEID_OK, "gen next");
+        CHECK((cur.uuid[6] >> 4) == 7 && (cur.uuid[8] & 0xC0) == 0x80, "gen v7");
+        typeid_to_string(&cur, cs, sizeof cs, NULL);
+        if (strcmp(ps, cs) >= 0) {
+            CHECK(0, "not monotonic at %d: %s >= %s", i, ps, cs);
+            break;
+        }
+        memcpy(ps, cs, sizeof ps);
+        prev = cur;
+    }
+
+    /* Counter overflow borrows the next millisecond. */
+    gen.last_ms = 0xFFFFFFFFFF00ULL; /* far future */
+    gen.counter = 0x0FFF;
+    CHECK(typeid_gen_next(&gen, &cur, "order") == TYPEID_OK, "gen overflow");
+    CHECK(typeid_timestamp_ms(&cur) == 0xFFFFFFFFFF01ULL, "borrowed ms");
+    CHECK(gen.counter == 0, "counter reset");
+
+    /* Clock going backwards keeps ordering. */
+    gen.counter = 5;
+    CHECK(typeid_gen_next(&gen, &cur, "order") == TYPEID_OK, "gen backwards");
+    CHECK(typeid_timestamp_ms(&cur) == 0xFFFFFFFFFF01ULL && gen.counter == 6, "backwards");
+
+    CHECK(typeid_gen_next(&gen, &cur, "Order") == TYPEID_ERR_PREFIX, "gen bad prefix");
+    CHECK(typeid_gen_next(NULL, &cur, "order") == TYPEID_ERR_NULL, "gen null");
+}
+
 int main(void) {
     test_valid_vectors();
     test_invalid_vectors();
@@ -195,6 +257,8 @@ int main(void) {
     test_timestamp();
     test_sortable();
     test_roundtrip_random();
+    test_helpers();
+    test_generator();
     printf("%d checks, %d failures (%u valid + %u invalid spec vectors)\n", checks,
            failures, (unsigned)COUNT(VALID), (unsigned)COUNT(INVALID));
     return failures ? 1 : 0;
