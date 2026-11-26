@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to create and release (e.g. v0.1.0)"
+        required: true
+
+env:
+  TAG: ${{ inputs.version || github.ref_name }}
 
 permissions:
   contents: write
@@ -44,7 +52,7 @@ jobs:
         run: |
           mkdir dist
           cp ${{ matrix.file }} LICENSE NOTICE dist/
-          cd dist && 7z a ../typeid-sqlite-${{ github.ref_name }}-${{ matrix.name }}.zip . > /dev/null
+          cd dist && 7z a ../typeid-sqlite-${{ env.TAG }}-${{ matrix.name }}.zip . > /dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
@@ -61,7 +69,7 @@ jobs:
           merge-multiple: true
       - name: Extract release notes from CHANGELOG.md
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { found = 1; next }
             found && /^## \[/ { exit }
@@ -72,6 +80,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp typeid.h dist/
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "$GITHUB_REF_NAME" --notes-file notes.md
+          cp typeid.h typeid.hpp dist/
+          # Creates the tag at this commit when run manually.
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md
