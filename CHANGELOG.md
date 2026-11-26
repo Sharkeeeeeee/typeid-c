@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-26
+
+### Fixed
+
+- Timestamps no longer drop to second precision when the implementation is
+  compiled in strict ISO C mode (for example `-std=c99`) on Linux, macOS and BSD.
+- `typeid new <prefix> <count>` in the example CLI now outputs IDs in strictly
+  increasing order and rejects an invalid count instead of printing nothing.
+
+### Added
+
+- CLI test script (`make test-cli`), run in CI.
+
+### Documentation
+
+- README: C++ users need `typeid.hpp` as well as `typeid.h`; pin examples to
+  `v0.1.0`; note `cxx_std_17` for CMake consumers; explain that the SQLite
+  extension must be loaded on every writing connection, and the glibc
+  requirement of the prebuilt Linux binaries.
+
 ## [0.1.0] - 2026-11-26
 
 ### Added
@@ -34,5 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example command-line tool and micro-benchmark.
 - Test suite covering all official spec vectors; CI on Linux, macOS and Windows.
 
-[Unreleased]: https://github.com/Sharkeeeeeee/typeid-c/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Sharkeeeeeee/typeid-c/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Sharkeeeeeee/typeid-c/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Sharkeeeeeee/typeid-c/releases/tag/v0.1.0

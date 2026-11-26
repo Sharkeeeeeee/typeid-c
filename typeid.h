@@ -32,7 +32,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define TYPEID_VERSION "0.1.0"
+#define TYPEID_VERSION "0.1.1"
 #define TYPEID_SPEC_VERSION "0.3.0"
 
 /* Maximum prefix length, in characters. */
