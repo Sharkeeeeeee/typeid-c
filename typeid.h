@@ -255,9 +255,22 @@ static uint64_t typeid__now_ms(void) {
     struct timespec ts;
     timespec_get(&ts, TIME_UTC);
     return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+#elif defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || \
+    defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
+    /* Strict ISO C mode (e.g. -std=c99) hides clock_gettime and struct
+     * timespec, but the function is always there on these systems. Declare
+     * it with a layout-compatible struct. CLOCK_REALTIME is 0 on all of them. */
+    struct typeid__timespec {
+        time_t tv_sec;
+        long tv_nsec;
+    } ts;
+    extern int clock_gettime(int, struct typeid__timespec *);
+    if (clock_gettime(0, &ts) == 0)
+        return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+    return (uint64_t)time(NULL) * 1000u;
 #else
-    /* Strict C99 without POSIX: only second precision is available. Compile
-     * with -D_POSIX_C_SOURCE=200809L or define TYPEID_NOW_MS() to fix this. */
+    /* Unknown platform without POSIX or C11: only second precision. Define
+     * TYPEID_NOW_MS() to supply a millisecond clock. */
     return (uint64_t)time(NULL) * 1000u;
 #endif
 }
