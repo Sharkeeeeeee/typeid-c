@@ -10,11 +10,13 @@
  *   sqlite> .load ./typeid
  *
  * Functions (NULL in, NULL out):
- *   typeid_new([prefix])         new TypeID with a fresh UUIDv7
+ *   typeid_new([prefix])         new TypeID with a fresh UUIDv7; IDs from the
+ *                                same connection are strictly increasing
  *   typeid_encode(prefix, uuid)  TypeID from a UUID (text or 16-byte blob)
  *   typeid_uuid(tid)             UUID as canonical text
  *   typeid_uuid_blob(tid)        UUID as a 16-byte blob
  *   typeid_prefix(tid)           type prefix ('' when there is none)
+ *   typeid_suffix(tid)           26-char base32 suffix
  *   typeid_timestamp(tid)        UUIDv7 Unix timestamp in milliseconds
  *   typeid_valid(tid)            1 if tid is a valid TypeID, else 0
  *   typeid_check(tid, prefix)    1 if tid is valid and has this prefix, else 0
@@ -82,7 +84,7 @@ static void fn_new(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
     } else if (argc == 0) {
         prefix[0] = '\0';
     }
-    e = typeid_new(&tid, prefix);
+    e = typeid_gen_next((typeid_gen_t *)sqlite3_user_data(ctx), &tid, prefix);
     if (e != TYPEID_OK) {
         tid_error(ctx, "typeid_new", e);
         return;
@@ -151,6 +153,13 @@ static void fn_prefix(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
     sqlite3_result_text(ctx, tid.prefix, -1, SQLITE_TRANSIENT);
 }
 
+static void fn_suffix(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
+    char buf[TYPEID_SUFFIX_LEN + 1];
+    TID_ARG_OR_RETURN("typeid_suffix")
+    typeid_suffix(&tid, buf);
+    sqlite3_result_text(ctx, buf, TYPEID_SUFFIX_LEN, SQLITE_TRANSIENT);
+}
+
 static void fn_timestamp(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
     TID_ARG_OR_RETURN("typeid_timestamp")
     sqlite3_result_int64(ctx, (sqlite3_int64)typeid_timestamp_ms(&tid));
@@ -190,19 +199,32 @@ int sqlite3_typeid_init(sqlite3 *db, char **pzErrMsg,
         {"typeid_uuid", 1, 1, fn_uuid},
         {"typeid_uuid_blob", 1, 1, fn_uuid_blob},
         {"typeid_prefix", 1, 1, fn_prefix},
+        {"typeid_suffix", 1, 1, fn_suffix},
         {"typeid_timestamp", 1, 1, fn_timestamp},
         {"typeid_valid", 1, 1, fn_valid},
         {"typeid_check", 2, 1, fn_check},
     };
     size_t i;
     int rc = SQLITE_OK;
+    typeid_gen_t *gen;
     SQLITE_EXTENSION_INIT2(pApi);
     (void)pzErrMsg;
+    /* One monotonic generator per connection. SQLite serializes calls on a
+     * connection, so no extra locking is needed. */
+    gen = (typeid_gen_t *)sqlite3_malloc(sizeof *gen);
+    if (!gen) return SQLITE_NOMEM;
+    typeid_gen_init(gen);
     for (i = 0; i < sizeof fns / sizeof fns[0] && rc == SQLITE_OK; i++) {
         int flags = SQLITE_UTF8 | SQLITE_INNOCUOUS;
+        void *app = fns[i].deterministic ? NULL : gen;
         if (fns[i].deterministic) flags |= SQLITE_DETERMINISTIC;
-        rc = sqlite3_create_function(db, fns[i].name, fns[i].nargs, flags, NULL,
-                                     fns[i].fn, NULL, NULL);
+        /* The last typeid_new overload owns `gen` and frees it on close. */
+        rc = sqlite3_create_function_v2(
+            db, fns[i].name, fns[i].nargs, flags, app, fns[i].fn, NULL, NULL,
+            (app && fns[i].nargs == 1) ? sqlite3_free : NULL);
     }
+    /* If registering typeid_new/0 failed, nothing owns `gen` yet. (SQLite
+     * calls the destructor itself when registering typeid_new/1 fails.) */
+    if (rc != SQLITE_OK && i == 1) sqlite3_free(gen);
     return rc;
 }

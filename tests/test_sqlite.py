@@ -54,6 +54,11 @@ check(new.startswith("user_") and len(new) == 31, "typeid_new: " + new)
 check(len(q("select typeid_new()")) == 26, "typeid_new() without prefix")
 check(len(q("select typeid_new(NULL)")) == 26, "typeid_new(NULL)")
 check(raises("select typeid_new('User')"), "typeid_new bad prefix")
+ids = [r[0] for r in db.execute(
+    "with recursive n(i) as (select 1 union all select i + 1 from n where i < 20000) "
+    "select typeid_new('evt') from n")]
+check(ids == sorted(ids) and len(set(ids)) == len(ids), "typeid_new is monotonic per connection")
+check(q("select typeid_suffix(?)", tid) == "01h455vb4pex5vsknk084sn02q", "suffix")
 check(q("select typeid_encode('user', typeid_uuid_blob(?))", tid) == tid, "blob roundtrip")
 check(raises("select typeid_encode('user', x'0102')"), "short blob")
 check(raises("select typeid_encode('User', '01890a5d-ac96-774b-bcce-b302099a8057')"), "encode bad prefix")
@@ -77,5 +82,6 @@ try:
 except sqlite3.IntegrityError:
     pass
 
+db.close()
 print("sqlite extension: %d failures (%d valid + %d invalid spec vectors)" % (failures, len(valid), len(invalid)))
 sys.exit(1 if failures else 0)
