@@ -16,6 +16,7 @@
 - [Installation](#installation)
 - [Usage](#usage)
   - [Quick Start](#quick-start)
+  - [Strictly Ordered IDs](#strictly-ordered-ids)
   - [Error Handling](#error-handling)
   - [Configuration](#configuration)
   - [SQLite Extension](#sqlite-extension)
@@ -44,8 +45,9 @@ TypeIDs are UUIDv7s with a type prefix, like Stripe IDs. You can't mix up a `use
 
 - **One file.** Drop [`typeid.h`](typeid.h) into your project. No dependencies, no build system required.
 - **Portable.** C99 and C++11, tested with GCC, Clang and MSVC on Linux, macOS and Windows. Uses the OS CSPRNG (`getrandom`, `arc4random_buf`, `BCryptGenRandom`).
-- **Spec-compliant.** Passes every official [valid and invalid test vector](https://github.com/jetify-com/typeid/tree/main/spec) of TypeID spec v0.3.0, plus 40k+ additional checks, under ASan and UBSan.
+- **Spec-compliant.** Passes every official [valid and invalid test vector](https://github.com/jetify-com/typeid/tree/main/spec) of TypeID spec v0.3.0, plus 400k+ additional checks, under ASan and UBSan, and continuously fuzzed with libFuzzer.
 - **No allocations.** Everything works on caller-provided buffers. Safe to use in embedded and real-time code.
+- **Strictly sortable.** An optional monotonic generator guarantees ordering even for IDs created in the same millisecond ([RFC 9562](https://www.rfc-editor.org/rfc/rfc9562#section-6.2) method 1).
 - **SQLite extension included.** `SELECT typeid_new('user')` and TypeID primary keys in plain SQLite.
 
 ## Requirements
@@ -71,6 +73,15 @@ Pick whichever fits your project:
   target_link_libraries(your_app PRIVATE typeid::typeid)
   ```
 
+- **CMake `find_package`** (after `cmake --install`):
+
+  ```cmake
+  find_package(typeid 0.1 REQUIRED)
+  target_link_libraries(your_app PRIVATE typeid::typeid)
+  ```
+
+- **pkg-config:** `cc $(pkg-config --cflags typeid) main.c`
+- **Prebuilt SQLite extension:** download `typeid-sqlite-<version>-<platform>.zip` for Linux (x86-64, ARM64), macOS (ARM64) or Windows (x86-64) from [Releases](https://github.com/Sharkeeeeeee/typeid-c/releases).
 - **Git submodule:** `git submodule add https://github.com/Sharkeeeeeee/typeid-c third_party/typeid-c`
 
 ## Usage
@@ -101,6 +112,18 @@ int main(void) {
 
 ```sh
 cc -O2 main.c -o main && ./main
+```
+
+### Strictly Ordered IDs
+
+```c
+typeid_gen_t gen;
+typeid_gen_init(&gen);
+
+typeid_t a, b;
+typeid_gen_next(&gen, &a, "event");
+typeid_gen_next(&gen, &b, "event");
+/* a < b, even within the same millisecond */
 ```
 
 ### Error Handling
@@ -147,10 +170,10 @@ SELECT id, typeid_uuid(id), datetime(typeid_timestamp(id) / 1000, 'unixepoch') F
 
 | Function | Returns |
 | --- | --- |
-| `typeid_new([prefix])` | A new TypeID |
+| `typeid_new([prefix])` | A new TypeID (strictly increasing within a connection) |
 | `typeid_encode(prefix, uuid)` | TypeID from a UUID given as text or a 16-byte blob |
 | `typeid_uuid(tid)` / `typeid_uuid_blob(tid)` | The UUID as text / as a 16-byte blob |
-| `typeid_prefix(tid)` | The type prefix |
+| `typeid_prefix(tid)` / `typeid_suffix(tid)` | The type prefix / the 26-char suffix |
 | `typeid_timestamp(tid)` | Creation time in Unix ms |
 | `typeid_valid(tid)` | 1 if valid, else 0 |
 | `typeid_check(tid, prefix)` | 1 if valid and has that prefix, else 0 (great in `CHECK` constraints) |
@@ -187,6 +210,10 @@ All functions return `TYPEID_OK` (0) on success or a `typeid_err` code. `typeid_
 | `typeid_timestamp_ms(&id)` | Creation time (Unix ms) stored in the UUIDv7. |
 | `typeid_compare(&a, &b)` | Order by prefix, then by UUID (time). |
 | `typeid_prefix_valid(p, len)` | Check a prefix against `^([a-z]([a-z_]{0,61}[a-z])?)?$`. |
+| `typeid_parse_expect(&id, str, "user")` | Parse and require a specific prefix (`TYPEID_ERR_PREFIX_MISMATCH` otherwise). |
+| `typeid_suffix(&id, buf)` | The 26-char base32 suffix. |
+| `typeid_equal(&a, &b)` / `typeid_is_nil(&id)` | Equality / nil-UUID check. |
+| `typeid_gen_init(&gen)` / `typeid_gen_next(&gen, &id, "user")` | Monotonic generator: every ID sorts after the previous one. |
 | `typeid_encode_suffix` / `typeid_decode_suffix` | Low-level base32 encode/decode of the 26-char suffix. |
 
 The struct is plain data, so you can copy it, store it, and compare it with `typeid_compare`:
@@ -210,6 +237,7 @@ typedef struct typeid_t {
 | `TYPEID_ERR_UUID` | 5 | Malformed UUID string |
 | `TYPEID_ERR_BUFFER` | 6 | Output buffer is too small |
 | `TYPEID_ERR_RANDOM` | 7 | The system random number generator failed |
+| `TYPEID_ERR_PREFIX_MISMATCH` | 8 | Valid TypeID, but not the prefix passed to `typeid_parse_expect` |
 
 ## Performance
 
@@ -217,9 +245,10 @@ typedef struct typeid_t {
 
 | Operation | Time |
 | --- | --- |
-| `typeid_to_string` | ~45 ns |
-| `typeid_parse` (validate + decode) | ~80 ns |
-| `typeid_new` (one `getrandom` syscall) | ~400 ns |
+| `typeid_to_string` | ~30 ns |
+| `typeid_parse` (validate + decode) | ~50 ns |
+| `typeid_new` (one `getrandom` syscall) | ~330 ns |
+| `typeid_gen_next` (monotonic) | ~350 ns |
 
 ## Testing
 
@@ -227,11 +256,13 @@ typedef struct typeid_t {
 make test     # C tests + SQLite extension tests
 ```
 
+Run `make fuzz` (requires clang) to fuzz the parser locally.
+
 The tests run every case from the official [`valid.json`](tests/spec/valid.json) and [`invalid.json`](tests/spec/invalid.json), round-trip 20,000 random UUIDs, and check that string order always matches byte (time) order. CI runs them on Linux, macOS and Windows with GCC, Clang, MSVC, C++ mode and sanitizers.
 
 ## Design Notes
 
-- `typeid_new` is thread-safe. IDs generated in the same millisecond are ordered randomly relative to each other (the spec does not require monotonic ordering within a millisecond).
+- `typeid_new` is thread-safe and stateless. IDs it generates in the same millisecond are ordered randomly relative to each other. When you need strict ordering, use a `typeid_gen_t` generator (one per thread, or guard a shared one with a mutex). The SQLite extension keeps one generator per connection.
 - Decoding accepts any UUID version, as the spec recommends, so you can wrap existing UUIDv4 keys. Only `typeid_new` guarantees UUIDv7.
 - If you compile the implementation with strict `-std=c99` and no POSIX feature macros, timestamps fall back to second precision. Add `-D_POSIX_C_SOURCE=200809L` (or use the default `gnu` modes) to get milliseconds.
 

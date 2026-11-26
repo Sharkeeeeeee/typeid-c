@@ -15,10 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Generation (`typeid_new`), parsing (`typeid_parse`, `typeid_parse_n`), encoding
   (`typeid_to_string`, `typeid_from_uuid`, `typeid_from_uuid_str`) and helpers
   (`typeid_uuid_string`, `typeid_timestamp_ms`, `typeid_compare`, `typeid_prefix_valid`).
+- Monotonic generator (`typeid_gen_t`, `typeid_gen_init`, `typeid_gen_next`) that
+  guarantees strictly increasing IDs within a millisecond (RFC 9562, method 1).
+- Helpers: `typeid_suffix`, `typeid_parse_expect`, `typeid_equal`, `typeid_is_nil`
+  and the `TYPEID_ERR_PREFIX_MISMATCH` error code.
 - Platform CSPRNG support for Linux, macOS, BSDs and Windows, with `TYPEID_RANDOM`
   and `TYPEID_NOW_MS` overrides.
 - SQLite loadable extension with `typeid_new`, `typeid_encode`, `typeid_uuid`,
-  `typeid_uuid_blob`, `typeid_prefix`, `typeid_timestamp`, `typeid_valid` and `typeid_check`.
+  `typeid_uuid_blob`, `typeid_prefix`, `typeid_suffix`, `typeid_timestamp`, `typeid_valid`
+  and `typeid_check`; `typeid_new` is monotonic per connection.
+- Prebuilt SQLite extension binaries for Linux, macOS and Windows on each release.
+- CMake package config (`find_package(typeid)`) and pkg-config file.
+- libFuzzer harness for the parser, run in CI.
 - Example command-line tool and micro-benchmark.
 - Test suite covering all official spec vectors; CI on Linux, macOS and Windows.
 
