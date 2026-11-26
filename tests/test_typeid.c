@@ -247,6 +247,20 @@ static void test_generator(void) {
     CHECK(typeid_gen_next(NULL, &cur, "order") == TYPEID_ERR_NULL, "gen null");
 }
 
+/* A hand-built struct with a bad prefix must not produce an invalid string
+ * or read past the prefix array. */
+static void test_untrusted_struct(void) {
+    typeid_t t, u;
+    char buf[TYPEID_STR_SIZE];
+    memset(&t, 0, sizeof t);
+    memcpy(t.prefix, "Bad", 4);
+    CHECK(typeid_to_string(&t, buf, sizeof buf, NULL) == TYPEID_ERR_PREFIX, "bad prefix");
+    memset(t.prefix, 'a', sizeof t.prefix); /* no NUL terminator */
+    CHECK(typeid_to_string(&t, buf, sizeof buf, NULL) == TYPEID_ERR_PREFIX, "no NUL");
+    u = t;
+    CHECK(typeid_compare(&t, &u) == 0, "compare without NUL");
+}
+
 int main(void) {
     test_valid_vectors();
     test_invalid_vectors();
@@ -259,6 +273,7 @@ int main(void) {
     test_roundtrip_random();
     test_helpers();
     test_generator();
+    test_untrusted_struct();
     printf("%d checks, %d failures (%u valid + %u invalid spec vectors)\n", checks,
            failures, (unsigned)COUNT(VALID), (unsigned)COUNT(INVALID));
     return failures ? 1 : 0;

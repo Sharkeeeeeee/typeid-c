@@ -95,7 +95,8 @@ TYPEID_API typeid_err typeid_parse_n(typeid_t *out, const char *str, size_t len)
 
 /* Write the canonical string form into `buf`. `buf_size` must be at least
  * strlen(prefix) + 28; TYPEID_STR_SIZE always fits. On success, `*out_len`
- * (if not NULL) receives the string length, excluding the NUL. */
+ * (if not NULL) receives the string length, excluding the NUL. Returns
+ * TYPEID_ERR_PREFIX if `tid->prefix` was set to an invalid value by hand. */
 TYPEID_API typeid_err typeid_to_string(const typeid_t *tid, char *buf,
                                        size_t buf_size, size_t *out_len);
 
@@ -179,9 +180,30 @@ TYPEID_API const char *typeid_strerror(typeid_err err);
 
 /* ---- platform: random bytes -------------------------------------------- */
 
+/* Include <windows.h> without its min/max macros and rarely used APIs, so
+ * the implementation does not break std::min/std::max in C++ callers. */
+#if defined(_WIN32) && !defined(_WINDOWS_)
+#ifndef NOMINMAX
+#define NOMINMAX
+#define TYPEID__UNDEF_NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#define TYPEID__UNDEF_LEAN
+#endif
+#include <windows.h>
+#ifdef TYPEID__UNDEF_NOMINMAX
+#undef NOMINMAX
+#undef TYPEID__UNDEF_NOMINMAX
+#endif
+#ifdef TYPEID__UNDEF_LEAN
+#undef WIN32_LEAN_AND_MEAN
+#undef TYPEID__UNDEF_LEAN
+#endif
+#endif
+
 #ifndef TYPEID_RANDOM
 #if defined(_WIN32)
-#include <windows.h>
 #include <bcrypt.h>
 #if defined(_MSC_VER)
 #pragma comment(lib, "bcrypt.lib")
@@ -191,14 +213,29 @@ static int typeid__random(void *buf, size_t n) {
                            BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0 ? 0 : -1;
 }
 #elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
-    defined(__NetBSD__) || defined(__DragonFly__)
+    defined(__NetBSD__) || defined(__DragonFly__) || defined(__ANDROID__)
 #include <stdlib.h>
 static int typeid__random(void *buf, size_t n) {
     arc4random_buf(buf, n);
     return 0;
 }
-#elif defined(__linux__) && defined(__GLIBC__) && \
+#else
+/* getrandom(): glibc 2.25+, and musl 1.1.20+ (detected via __has_include). */
+#if defined(__linux__) && defined(__GLIBC__) && \
     (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 25))
+#define TYPEID__HAVE_GETRANDOM 1
+#elif defined(__linux__) && !defined(__GLIBC__) && defined(__has_include)
+#if __has_include(<sys/random.h>)
+#define TYPEID__HAVE_GETRANDOM 1
+#endif
+#endif
+#endif /* platform detection */
+
+#if defined(_WIN32) || defined(__APPLE__) || defined(__FreeBSD__) || \
+    defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || \
+    defined(__ANDROID__)
+/* handled above */
+#elif defined(TYPEID__HAVE_GETRANDOM)
 #include <errno.h>
 #include <sys/random.h>
 static int typeid__random(void *buf, size_t n) {
@@ -232,9 +269,6 @@ static int typeid__random(void *buf, size_t n) {
 
 #ifndef TYPEID_NOW_MS
 #if defined(_WIN32)
-#ifndef _WINDOWS_
-#include <windows.h>
-#endif
 static uint64_t typeid__now_ms(void) {
     FILETIME ft;
     ULARGE_INTEGER t;
@@ -523,7 +557,14 @@ TYPEID_API typeid_err typeid_to_string(const typeid_t *tid, char *buf,
                                        size_t buf_size, size_t *out_len) {
     size_t plen, total;
     if (!tid || !buf) return TYPEID_ERR_NULL;
-    plen = strlen(tid->prefix);
+    /* The struct is public, so do not trust its prefix: it must be
+     * NUL-terminated within the array and valid. */
+    {
+        const char *nul = (const char *)memchr(tid->prefix, '\0', sizeof tid->prefix);
+        if (!nul) return TYPEID_ERR_PREFIX;
+        plen = (size_t)(nul - tid->prefix);
+    }
+    if (!typeid_prefix_valid(tid->prefix, plen)) return TYPEID_ERR_PREFIX;
     total = plen + (plen ? 1 : 0) + TYPEID_SUFFIX_LEN;
     if (buf_size < total + 1) return TYPEID_ERR_BUFFER;
     if (plen) {
@@ -545,7 +586,7 @@ TYPEID_API uint64_t typeid_timestamp_ms(const typeid_t *tid) {
 }
 
 TYPEID_API int typeid_compare(const typeid_t *a, const typeid_t *b) {
-    int c = strcmp(a->prefix, b->prefix);
+    int c = strncmp(a->prefix, b->prefix, sizeof a->prefix);
     if (c) return c;
     return memcmp(a->uuid, b->uuid, 16);
 }
